@@ -1,0 +1,157 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using ExcelMapper;
+
+// Модель для данных из Excel таблиц
+public class TableRow
+{
+    [Column("A")]
+    public string ColumnA { get; set; }
+    
+    [Column("B")]
+    public string ColumnB { get; set; }
+    
+    [Column("C")]
+    public string ColumnC { get; set; }
+}
+
+class Program
+{
+    static void Main(string[] args)
+    {
+        try
+        {
+            // Загружаем данные из двух Excel файлов
+            var excelMapper1 = new ExcelMapper("table1.xlsx");
+            var excelMapper2 = new ExcelMapper("table2.xlsx");
+
+            // Получаем данные из таблиц
+            var table1Data = excelMapper1.Fetch<TableRow>().ToList();
+            var table2Data = excelMapper2.Fetch<TableRow>().ToList();
+
+            Console.WriteLine($"Таблица 1: {table1Data.Count} строк");
+            Console.WriteLine($"Таблица 2: {table2Data.Count} строк");
+            Console.WriteLine();
+
+            // Сравниваем таблицы
+            CompareTables(table1Data, table2Data);
+
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Ошибка: {ex.Message}");
+        }
+
+        Console.WriteLine("\nНажмите любую клавишу для выхода...");
+        Console.ReadKey();
+    }
+
+    static void CompareTables(List<TableRow> table1, List<TableRow> table2)
+    {
+        Console.WriteLine("=== СРАВНЕНИЕ ТАБЛИЦ ===\n");
+
+        // Сравниваем построчно (предполагаем, что строки можно сравнивать по содержимому)
+        CompareByContent(table1, table2);
+        
+        Console.WriteLine();
+        
+        // Сравниваем по отдельным столбцам
+        CompareByColumns(table1, table2);
+    }
+
+    static void CompareByContent(List<TableRow> table1, List<TableRow> table2)
+    {
+        Console.WriteLine("СРАВНЕНИЕ ПО СОДЕРЖИМОМУ СТРОК:");
+        
+        // Преобразуем строки в уникальные строки для сравнения
+        var table1Rows = table1.Select(row => $"{row.ColumnA}|{row.ColumnB}|{row.ColumnC}").ToList();
+        var table2Rows = table2.Select(row => $"{row.ColumnA}|{row.ColumnB}|{row.ColumnC}").ToList();
+
+        // Находим новые строки (есть во второй таблице, но нет в первой)
+        var newRows = table2Rows.Except(table1Rows).ToList();
+        if (newRows.Any())
+        {
+            Console.WriteLine($"Новые строки ({newRows.Count}):");
+            foreach (var row in newRows)
+            {
+                Console.WriteLine($"  + {row}");
+            }
+        }
+
+        // Находим удаленные строки (есть в первой таблице, но нет во второй)
+        var deletedRows = table1Rows.Except(table2Rows).ToList();
+        if (deletedRows.Any())
+        {
+            Console.WriteLine($"Удаленные строки ({deletedRows.Count}):");
+            foreach (var row in deletedRows)
+            {
+                Console.WriteLine($"  - {row}");
+            }
+        }
+
+        // Находим совпадающие строки
+        var matchingRows = table1Rows.Intersect(table2Rows).ToList();
+        Console.WriteLine($"Совпадающие строки ({matchingRows.Count}):");
+        if (matchingRows.Any())
+        {
+            foreach (var row in matchingRows.Take(5)) // Показываем первые 5 совпадений
+            {
+                Console.WriteLine($"  = {row}");
+            }
+            if (matchingRows.Count > 5)
+            {
+                Console.WriteLine($"  ... и еще {matchingRows.Count - 5} совпадений");
+            }
+        }
+
+        if (!newRows.Any() && !deletedRows.Any() && matchingRows.Count == table1Rows.Count)
+        {
+            Console.WriteLine("Таблицы идентичны");
+        }
+    }
+
+    static void CompareByColumns(List<TableRow> table1, List<TableRow> table2)
+    {
+        Console.WriteLine("\nСРАВНЕНИЕ ПО СТОЛБЦАМ:");
+
+        // Сравниваем столбец A
+        var colA1 = table1.Select(r => r.ColumnA).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        var colA2 = table2.Select(r => r.ColumnA).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        CompareColumn("Столбец A", colA1, colA2);
+
+        // Сравниваем столбец B
+        var colB1 = table1.Select(r => r.ColumnB).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        var colB2 = table2.Select(r => r.ColumnB).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        CompareColumn("Столбец B", colB1, colB2);
+
+        // Сравниваем столбец C
+        var colC1 = table1.Select(r => r.ColumnC).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        var colC2 = table2.Select(r => r.ColumnC).Where(x => !string.IsNullOrEmpty(x)).ToList();
+        CompareColumn("Столбец C", colC1, colC2);
+    }
+
+    static void CompareColumn(string columnName, List<string> column1, List<string> column2)
+    {
+        var added = column2.Except(column1).ToList();
+        var removed = column1.Except(column2).ToList();
+        var common = column1.Intersect(column2).ToList();
+
+        Console.WriteLine($"\n{columnName}:");
+        Console.WriteLine($"  Всего в таблице 1: {column1.Count}");
+        Console.WriteLine($"  Всего в таблице 2: {column2.Count}");
+        Console.WriteLine($"  Совпадений: {common.Count}");
+
+        if (added.Any())
+        {
+            Console.WriteLine($"  Добавлено: {string.Join(", ", added.Take(3))}" + 
+                            (added.Count > 3 ? $" (+ еще {added.Count - 3})" : ""));
+        }
+
+        if (removed.Any())
+        {
+            Console.WriteLine($"  Удалено: {string.Join(", ", removed.Take(3))}" + 
+                            (removed.Count > 3 ? $" (+ еще {removed.Count - 3})" : ""));
+        }
+    }
+}
